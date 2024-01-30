@@ -8,42 +8,36 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class SecretService {
-    private SecretDAO secretDAO;
+    private List<Secret> inMemoryDatabase = new ArrayList<>();
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
-    @Autowired
-    public SecretService(SecretDAO secretDAO) {
-        this.secretDAO = secretDAO;
-    }
-
-    public Secret getSecretByHash(String hash){
-
-        Secret secret = secretDAO.findSecretByHash(hash);
-        if(secret == null){
+    public Secret getSecretByHash(String hash) {
+        Secret secret = findSecretByHashInMemory(hash);
+        if (secret == null) {
             throw new RuntimeException("No secret by this hash.");
         }
 
         Integer remainingViews = secret.getRemainingViews();
-        if(remainingViews <= 0){
+        if (remainingViews <= 0) {
             throw new RuntimeException("No more views for secret.");
         }
-        secret.setRemainingViews(remainingViews-1);
+        secret.setRemainingViews(remainingViews - 1);
 
         LocalDateTime expiresAt = secret.getExpiresAt();
-        if(expiresAt!= null && !expiresAt.isAfter(LocalDateTime.now())){
+        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
             throw new RuntimeException("Secret expired.");
         }
 
-        secretDAO.save(secret);
         return secret;
     }
 
-    public String addSecret(String secretText, Integer expiresAt, Integer remainingViews){
-
+    public String addSecret(String secretText, Integer expiresAt, Integer remainingViews) {
         String hash = encoder.encode(secretText);
         String urlSafeHash = makeUrlSafe(hash); // Convert to URL-safe hash
         System.out.println(urlSafeHash);
@@ -54,15 +48,22 @@ public class SecretService {
         }
 
         Secret secret = Secret.builder()
-                        .hash(urlSafeHash)
-                        .secretText(secretText)
-                        .createdAt(LocalDateTime.now())
-                        .expiresAt(expirationTime)
-                        .remainingViews(remainingViews)
-                        .build();
+                .hash(urlSafeHash)
+                .secretText(secretText)
+                .createdAt(LocalDateTime.now())
+                .expiresAt(expirationTime)
+                .remainingViews(remainingViews)
+                .build();
 
-        secretDAO.save(secret);
+        inMemoryDatabase.add(secret);
         return urlSafeHash;
+    }
+
+    private Secret findSecretByHashInMemory(String hash) {
+        return inMemoryDatabase.stream()
+                .filter(secret -> secret.getHash().equals(hash))
+                .findFirst()
+                .orElse(null);
     }
 
     private String makeUrlSafe(String hash) {
