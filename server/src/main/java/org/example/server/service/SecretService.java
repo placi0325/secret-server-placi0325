@@ -14,30 +14,38 @@ import java.util.List;
 
 @Service
 public class SecretService {
-    private List<Secret> inMemoryDatabase = new ArrayList<>();
+    private SecretDAO secretDAO;
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
-    public Secret getSecretByHash(String hash) {
-        Secret secret = findSecretByHashInMemory(hash);
-        if (secret == null) {
+    @Autowired
+    public SecretService(SecretDAO secretDAO) {
+        this.secretDAO = secretDAO;
+    }
+
+    public Secret getSecretByHash(String hash){
+
+        Secret secret = secretDAO.findSecretByHash(hash);
+        if(secret == null){
             throw new RuntimeException("No secret by this hash.");
         }
 
         Integer remainingViews = secret.getRemainingViews();
-        if (remainingViews <= 0) {
+        if(remainingViews <= 0){
             throw new RuntimeException("No more views for secret.");
         }
-        secret.setRemainingViews(remainingViews - 1);
+        secret.setRemainingViews(remainingViews-1);
 
         LocalDateTime expiresAt = secret.getExpiresAt();
-        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
+        if(expiresAt!= null && !expiresAt.isAfter(LocalDateTime.now())){
             throw new RuntimeException("Secret expired.");
         }
 
+        secretDAO.save(secret);
         return secret;
     }
 
-    public String addSecret(String secretText, Integer expiresAt, Integer remainingViews) {
+    public String addSecret(String secretText, Integer expiresAt, Integer remainingViews){
+
         String hash = encoder.encode(secretText);
         String urlSafeHash = makeUrlSafe(hash); // Convert to URL-safe hash
         System.out.println(urlSafeHash);
@@ -55,15 +63,8 @@ public class SecretService {
                 .remainingViews(remainingViews)
                 .build();
 
-        inMemoryDatabase.add(secret);
+        secretDAO.save(secret);
         return urlSafeHash;
-    }
-
-    private Secret findSecretByHashInMemory(String hash) {
-        return inMemoryDatabase.stream()
-                .filter(secret -> secret.getHash().equals(hash))
-                .findFirst()
-                .orElse(null);
     }
 
     private String makeUrlSafe(String hash) {
