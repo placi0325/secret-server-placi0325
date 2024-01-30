@@ -7,6 +7,9 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/v1")
 public class SecretController {
@@ -18,18 +21,26 @@ public class SecretController {
 
     @PostMapping("/secret")
     public ResponseEntity<?> addSecret(@RequestBody SecretDTO secretDTO){
+        Map<String, Object> response = new HashMap<>();
+
         String hash = secretService.addSecret(secretDTO.secretText(), secretDTO.expiresAt(), secretDTO.remainingViews());
-        return new ResponseEntity<>(hash, HttpStatusCode.valueOf(200));
+
+        response.put("hash", hash);
+        return new ResponseEntity<>(response, HttpStatusCode.valueOf(200));
     }
 
     @GetMapping("/secret/{hash}")
     public ResponseEntity<?> getSecretByHash(@PathVariable String hash){
+        Map<String, Object> response = new HashMap<>();
+
         try {
             Secret secret = secretService.getSecretByHash(hash);
-            return new ResponseEntity<>(secret.getSecretText(), HttpStatusCode.valueOf(200));
+            response.put("secret", secret.getSecretText());
+            return new ResponseEntity<>(response, HttpStatusCode.valueOf(200));
         } catch (Exception e){
             System.out.println(e.getMessage());
-            return new ResponseEntity<>(e.getMessage(), HttpStatusCode.valueOf(405));
+            response.put("secret", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatusCode.valueOf(200));
         }
     }
 }
